@@ -7,12 +7,16 @@ from src.config import OUTPUT_PATHS, EVENT_DATES
 
 def setup_logging():
     """Configure logging for the application."""
+    # Ensure the log directory exists
+    log_dir = Path(OUTPUT_PATHS["plots"])
+    log_dir.mkdir(parents=True, exist_ok=True)
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler(Path(OUTPUT_PATHS["plots"]) / "analysis.log"),
+            logging.FileHandler(log_dir / "analysis.log"),
         ],
     )
 
