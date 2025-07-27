@@ -3,6 +3,7 @@ name = "project-nlp-tariffs-sensitivity-of-stocks"
 version = "0.1.0"
 description = ""
 authors = [
+    {name = "Matéo Molinaro",email = "mateo0609@hotmail.fr"},
     {name = "Enzo Montariol",email = "enzo.montariol@gmail.com"}
 ]
 readme = "README.md"
@@ -14,7 +15,9 @@ dependencies = [
     "scikit-learn (>=1.7.1,<2.0.0)",
     "nltk (>=3.9.1,<4.0.0)",
     "matplotlib (>=3.10.3,<4.0.0)",
-    "pyarrow (>=21.0.0,<22.0.0)"
+    "pyarrow (>=21.0.0,<22.0.0)",
+    "transformers (>=4.54.0,<5.0.0)",
+    "torch (>=2.7.1,<3.0.0)"
 ]
 
 [build-system]
