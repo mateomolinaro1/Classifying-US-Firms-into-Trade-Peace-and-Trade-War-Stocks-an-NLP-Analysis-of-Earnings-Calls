@@ -459,5 +459,4 @@ class AbnormalReturnsAnalysisOnEvents:
             mean_df.loc[event_date, "mean_car_trade_peace"] = mean_trade_peace
             mean_df.loc[event_date, "mean_car_trade_war"] = mean_trade_war
 
-        # self.mean_cumulative_abnormal_returns_trade_peace_war_by_event = mean_df
         return mean_df
