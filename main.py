@@ -38,6 +38,7 @@ def main():
         analyzer = TradePolicyAnalyzer(
             output_dir=OUTPUT_PATHS["plots"],
             run_finbert=True,  # Enable FinBERT analysis
+            run_custom_models=True,  # Enable Custom Models analysis
             event_dates=EVENT_DATES,
         )
 
