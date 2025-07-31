@@ -311,7 +311,7 @@ class TradePolicyAnalyzer:
             cm.get_accuracy_zero_shot_classification(
                 human_label_df=None,
                 loading_path_human=os.path.join(
-                    "outputs", "zero_shot_classification_results_human_label.xlsx"
+                    "data", "zero_shot_classification_results_human_label.xlsx"
                 ),
                 file_extension="xlsx",
                 usecols="A:H",
