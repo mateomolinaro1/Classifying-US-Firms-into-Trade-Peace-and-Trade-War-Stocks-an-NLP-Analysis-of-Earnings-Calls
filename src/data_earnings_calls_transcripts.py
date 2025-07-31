@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 from typing import List
-from utilities import preprocess_text
+from .utilities import preprocess_text
 
 
 class DataEarningsCallsTranscripts:

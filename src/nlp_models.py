@@ -3,7 +3,7 @@ import numpy as np
 from typing import Tuple, Dict, List, Optional
 from .transform import TradePolicyShockSentimentAnalyzer
 from joblib import Parallel, delayed
-from my_code.packages.utilities import retrieve_sentences_fast, get_unlabelled_data_flat_util, get_human_machine_accuracy_classification
+from src.utilities import retrieve_sentences_fast, get_unlabelled_data_flat_util, get_human_machine_accuracy_classification
 from tqdm import tqdm
 from transformers import pipeline
 import torch
@@ -390,8 +390,7 @@ class CustomModels:
             self.sentence_level_labels["labels_filtered"] != "unlabelled"]
         print(f"shape of sentence_level_label_filtered_threshold:{sentence_level_label_filtered_threshold.shape}")
         for label in self.labels:
-            print(f"freq of {label} labels{(sentence_level_label_filtered_threshold["labels"] == label).sum() /
-                  sentence_level_label_filtered_threshold.shape[0]} ({(sentence_level_label_filtered_threshold["labels"] == label).sum()})")
+            print(f"freq of {label} labels{(sentence_level_label_filtered_threshold['labels'] == label).sum() / sentence_level_label_filtered_threshold.shape[0]} ({(sentence_level_label_filtered_threshold['labels'] == label).sum()})")
 
         self.sentence_level_label_filtered_threshold = sentence_level_label_filtered_threshold
 

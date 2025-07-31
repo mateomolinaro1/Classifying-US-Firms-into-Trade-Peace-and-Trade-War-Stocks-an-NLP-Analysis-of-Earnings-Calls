@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import gzip
 import pickle
-from my_code.packages.data_earnings_calls_transcripts import DataEarningsCallsTranscripts
-from my_code.packages.nlp_models import BagOfWords, BagOfWordsWithSentiment, CustomModels
+from src.data_earnings_calls_transcripts import DataEarningsCallsTranscripts
+from src.nlp_models import BagOfWords, BagOfWordsWithSentiment, CustomModels
 from sklearn.linear_model import LogisticRegression
 
 # if __name__ == "__main__":
