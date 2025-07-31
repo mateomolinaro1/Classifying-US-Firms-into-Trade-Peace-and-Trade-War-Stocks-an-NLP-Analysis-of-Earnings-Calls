@@ -69,8 +69,6 @@ class TradePolicyAnalyzer:
         # Initialize data and results storage
         self.data_loader = DataLoader()
         self.formatted_transcripts_preprocessed: Optional[pd.DataFrame] = None
-        self.formatted_transcripts: Optional[pd.DataFrame] = None
-
 
         # Analysis results
         self.bow_results: Optional[pd.DataFrame] = None
@@ -354,6 +352,11 @@ class TradePolicyAnalyzer:
                 class_weight="balanced",
             )
 
+            # Step 5 Predict and aggregate
+            logger.info("Step 7: Predicting and aggregating...")
+            cm.predict()
+            cm.transcript_level_aggregation_from_sentence_labels()
+
             # Collect results
             results = {
                 "accuracy_metrics": cm.accuracy_zero_shot_classification,
@@ -365,6 +368,7 @@ class TradePolicyAnalyzer:
                 ),
                 "model_trained": cm.clf is not None,
                 "sentences_extracted": cm.sentences_of_interest_df is not None,
+                "transcript_labels": cm.transcript_predicted_labels,
             }
 
             logger.info("Custom Models Analysis completed successfully")
