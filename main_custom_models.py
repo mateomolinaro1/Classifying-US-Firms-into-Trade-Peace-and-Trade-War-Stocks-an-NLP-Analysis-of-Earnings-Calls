@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import gzip
 import pickle
+import os
 from src.data_earnings_calls_transcripts import DataEarningsCallsTranscripts
 from src.nlp_models import BagOfWords, BagOfWordsWithSentiment, CustomModels
 from sklearn.linear_model import LogisticRegression
@@ -11,7 +12,7 @@ from sklearn.linear_model import LogisticRegression
 download_or_load_transcripts = "load" # the transcripts can be downloaded from the API or loaded from a local file. We
 # recommend to always load the transcripts from a local file as the download from the API is limited to a number of calls
 # per month plus it's very long (~17 hours for the russell 1000 between 2008-2025).
-index_constituents_feather_path = r'C:\Users\mateo\Code\NLP\Project_NLP\data\RIY Index constituents.feather'
+index_constituents_feather_path = os.path.join("data", "RIY Index constituents.feather")
 ####################################################################################################################
 # Step 1 - Data Loading and Preprocessing
 dect = DataEarningsCallsTranscripts(index_constituents_feather_path=index_constituents_feather_path)
@@ -21,8 +22,8 @@ if download_or_load_transcripts == "download":
     dect.preprocess_transcripts()
 elif download_or_load_transcripts == "load":
     files = {
-        "formatted_transcripts": r'C:\Users\mateo\Code\NLP\Project_NLP\data\formatted_transcripts_gzip.pkl.gz',
-        "formatted_transcripts_preprocessed": r'C:\Users\mateo\Code\NLP\Project_NLP\data\formatted_transcripts_preprocessed_gzip.pkl.gz'
+        "formatted_transcripts": os.path.join("data", "formatted_transcripts_gzip.pkl.gz"),
+        "formatted_transcripts_preprocessed": os.path.join("data", "formatted_transcripts_preprocessed_gzip.pkl.gz")
     }
     for key, path in files.items():
         print(f"Loading {key} from {path}...")
@@ -53,10 +54,10 @@ cm.get_unlabelled_data_flat()
 #                                            ) # to optimize, takes c. 25min
 # if you want to save time and directly load the results from the above function,
 # de-comment these lines
-with gzip.open(r'.\data\zero_shot_classification_sentence_level_labels_train_val.pkl.gz', "rb") as handle:
+with gzip.open(os.path.join("data", "zero_shot_classification_sentence_level_labels_train_val.pkl.gz"), "rb") as handle:
     cm.sentence_level_labels = pickle.load(handle)
 cm.get_accuracy_zero_shot_classification(human_label_df=None,
-                                         loading_path_human=r'.\outputs\zero_shot_classification_results_human_label.xlsx',
+                                         loading_path_human=os.path.join("outputs", "zero_shot_classification_results_human_label.xlsx"),
                                          file_extension="xlsx",
                                          usecols="A:H",
                                          threshold_range=(0.33, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)

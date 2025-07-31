@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
 from typing import Tuple, Dict, List, Optional
+import os
 from .transform import TradePolicyShockSentimentAnalyzer
 from joblib import Parallel, delayed
-from src.utilities import retrieve_sentences_fast, get_unlabelled_data_flat_util, get_human_machine_accuracy_classification
+from .utilities import retrieve_sentences_fast, get_unlabelled_data_flat_util, get_human_machine_accuracy_classification
 from tqdm import tqdm
 from transformers import pipeline
 import torch
@@ -89,7 +90,7 @@ class DataSentimentDictionary:
 
     def __init__(
         self,
-        sentiment_dictionary_path: str = "data/Loughran-McDonald_MasterDictionary_1993-2024.csv",
+        sentiment_dictionary_path: str = os.path.join("data", "Loughran-McDonald_MasterDictionary_1993-2024.csv"),
     ):
         self.sentiment_dictionary_path = sentiment_dictionary_path
         self.positive_sentiment_dictionary = None
@@ -119,7 +120,7 @@ class BagOfWordsWithSentiment(BagOfWords):
         self,
         formatted_transcripts_preprocessed: pd.DataFrame,
         vocabulary: Optional[List[str]] = None,
-        sentiment_dictionary_path: str = "data/Loughran-McDonald_MasterDictionary_1993-2024.csv",
+        sentiment_dictionary_path: str = os.path.join("data", "Loughran-McDonald_MasterDictionary_1993-2024.csv"),
         window: int = 10,
     ):
 
@@ -357,7 +358,7 @@ class CustomModels:
 
     def get_accuracy_zero_shot_classification(self,
                                               human_label_df=None,
-                                              loading_path_human:str=r'.\outputs\zero_shot_classification_results_human_label.xlsx',
+                                              loading_path_human:str=os.path.join("outputs", "zero_shot_classification_results_human_label.xlsx"),
                                               file_extension:str='xlsx',
                                               usecols:str="A:H",
                                               threshold_range:Tuple[float,...]=(0.33,0.4,0.5,0.6,0.7,0.8,0.9)
