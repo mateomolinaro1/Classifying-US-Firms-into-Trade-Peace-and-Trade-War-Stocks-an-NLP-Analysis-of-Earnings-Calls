@@ -419,24 +419,36 @@ class AbnormalReturnsAnalysisOnEvents:
         prev_quarters_start = prev_quarters.asfreq("Q").start_time
 
         # To store
-        mean_df = pd.DataFrame(data=np.nan, index=pd.to_datetime(self.events_dates), columns=["mean_car_trade_peace", "mean_car_trade_war"])
+        mean_df = pd.DataFrame(data=np.nan, index=pd.to_datetime(self.events_dates),
+                               columns=["mean_car_trade_peace", "mean_car_trade_war"])
         # for each event_date / quarter, we get the tickers that signaled at least once
-        for i,event_date in enumerate(self.events_dates):
+        for i, event_date in enumerate(self.events_dates):
             print(f"Processing event date: {event_date}")
             curr_q = [prev_quarters_start[i]]
             bow_q_on_event = bow_q.loc[bow_q["quarter_dt"].isin(curr_q)]
 
             if bow_or_bowws == "bow":
-                tickers_api_signaled_on_event = bow_q_on_event.loc[bow_q_on_event["signal_once"] > 0.0, "ticker_api"].unique().tolist()
-                tickers_api_non_signaled_on_event = bow_q_on_event.loc[bow_q_on_event["signal_once"] == 0.0, "ticker_api"].unique().tolist()
+                tickers_api_signaled_on_event = bow_q_on_event.loc[
+                    bow_q_on_event["signal_once"] > 0.0, "ticker_api"].unique().tolist()
+                tickers_api_non_signaled_on_event = bow_q_on_event.loc[
+                    bow_q_on_event["signal_once"] == 0.0, "ticker_api"].unique().tolist()
             elif bow_or_bowws == "bowws":
-                tickers_api_signaled_on_event = bow_q_on_event.loc[bow_q_on_event["trade_sentiment"] > 0.0, "ticker_api"].unique().tolist()
-                tickers_api_non_signaled_on_event = bow_q_on_event.loc[bow_q_on_event["trade_sentiment"] < 0.0, "ticker_api"].unique().tolist()
+                tickers_api_signaled_on_event = bow_q_on_event.loc[
+                    bow_q_on_event["trade_sentiment"] > 0.0, "ticker_api"].unique().tolist()
+                tickers_api_non_signaled_on_event = bow_q_on_event.loc[
+                    bow_q_on_event["trade_sentiment"] < 0.0, "ticker_api"].unique().tolist()
+            elif bow_or_bowws == "custom_model":
+                tickers_api_signaled_on_event = bow_q_on_event.loc[
+                    bow_q_on_event["positive"] == 1.0, "ticker_api"].unique().tolist()
+                tickers_api_non_signaled_on_event = bow_q_on_event.loc[
+                    bow_q_on_event["negative"] == 1.0, "ticker_api"].unique().tolist()
             else:
-                raise ValueError("bow_or_bowws must be either 'bow' or 'bowws'.")
+                raise ValueError("bow_or_bowws must be either 'bow', 'bowws' or 'custom_model.")
 
-            tickers_signaled_on_event = [mapping_api_to_ticker[ticker_api] for ticker_api in tickers_api_signaled_on_event]
-            tickers_non_signaled_on_event = [mapping_api_to_ticker[ticker_api] for ticker_api in tickers_api_non_signaled_on_event]
+            tickers_signaled_on_event = [mapping_api_to_ticker[ticker_api] for ticker_api in
+                                         tickers_api_signaled_on_event]
+            tickers_non_signaled_on_event = [mapping_api_to_ticker[ticker_api] for ticker_api in
+                                             tickers_api_non_signaled_on_event]
             if len(tickers_signaled_on_event) == 0 or len(tickers_non_signaled_on_event) == 0:
                 print(f"No tickers signaled or non-signaled on event date {event_date}. Skipping.")
                 continue
@@ -447,5 +459,4 @@ class AbnormalReturnsAnalysisOnEvents:
             mean_df.loc[event_date, "mean_car_trade_peace"] = mean_trade_peace
             mean_df.loc[event_date, "mean_car_trade_war"] = mean_trade_war
 
-        # self.mean_cumulative_abnormal_returns_trade_peace_war_by_event = mean_df
         return mean_df

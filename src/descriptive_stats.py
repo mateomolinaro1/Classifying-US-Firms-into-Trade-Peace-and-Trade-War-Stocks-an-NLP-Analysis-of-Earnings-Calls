@@ -65,13 +65,21 @@ class DescriptiveStatsAnalyzer:
             bow_q["signal_once"] = (bow_q[condition_column] > 0.0).astype(float)
             count_once = bow_q.groupby("quarter")[["signal_once"]].sum()
         elif bow_or_bowws == "bowws":
-            bow_q["signal_positive"] = (bow_q["trade_sentiment"] > 0.0).astype(float)
-            bow_q["signal_negative"] = (bow_q["trade_sentiment"] < 0.0).astype(float)
+            bow_q["signal_positive"] = (bow_q[condition_column] > 0.0).astype(float)
+            bow_q["signal_negative"] = (bow_q[condition_column] < 0.0).astype(float)
             count_once = pd.DataFrame()
             count_once["positive"] = bow_q.groupby("quarter")[["signal_positive"]].sum()
             count_once["negative"] = bow_q.groupby("quarter")[["signal_negative"]].sum()
+        elif bow_or_bowws == "custom_model":
+            bow_q["positive"] = (bow_q[condition_column] == "positive").astype(float)
+            bow_q["negative"] = (bow_q[condition_column] == "negative").astype(float)
+            bow_q["neutral"] = (bow_q[condition_column] == "neutral").astype(float)
+            count_once = pd.DataFrame()
+            count_once["positive"] = bow_q.groupby("quarter")[["positive"]].sum()
+            count_once["negative"] = bow_q.groupby("quarter")[["negative"]].sum()
+            count_once["neutral"] = bow_q.groupby("quarter")[["neutral"]].sum()
         else:
-            raise ValueError("bow_or_bowws must be either 'bow' or 'bowws'.")
+            raise ValueError("bow_or_bowws must be either 'bow','bowws' or 'custom_model.")
 
         # Convert period index to timestamp
         if hasattr(count_once.index, "to_timestamp"):
