@@ -5,6 +5,7 @@ import pickle
 import os
 from src.data_earnings_calls_transcripts import DataEarningsCallsTranscripts
 from src.nlp_models import BagOfWords, BagOfWordsWithSentiment, CustomModels
+from src.data_loader import DataLoader, TranscriptTypes
 from sklearn.linear_model import LogisticRegression
 
 # if __name__ == "__main__":
@@ -17,18 +18,21 @@ index_constituents_feather_path = os.path.join("data", "RIY Index constituents.f
 # Step 1 - Data Loading and Preprocessing
 dect = DataEarningsCallsTranscripts(index_constituents_feather_path=index_constituents_feather_path)
 dect.load_index_constituents()
+
 if download_or_load_transcripts == "download":
     dect.get_earnings_transcript_for_index_constituents()
     dect.preprocess_transcripts()
 elif download_or_load_transcripts == "load":
-    files = {
-        "formatted_transcripts": os.path.join("data", "formatted_transcripts_gzip.pkl.gz"),
-        "formatted_transcripts_preprocessed": os.path.join("data", "formatted_transcripts_preprocessed_gzip.pkl.gz")
-    }
-    for key, path in files.items():
-        print(f"Loading {key} from {path}...")
-        with gzip.open(path, "rb") as handle:
-            setattr(dect, key, pickle.load(handle))
+    # Use DataLoader to load chunked transcript data
+    data_loader = DataLoader()
+    
+    # Load formatted transcripts (unprocessed)
+    print("Loading formatted transcripts...")
+    dect.formatted_transcripts = data_loader.get_data(TranscriptTypes.UNPROCESSED.value)
+    
+    # Load preprocessed transcripts
+    print("Loading preprocessed transcripts...")
+    dect.formatted_transcripts_preprocessed = data_loader.get_data(TranscriptTypes.PREPROCESSED.value)
 else:
     raise ValueError("download_or_load_transcripts must be either 'download' or 'load'.")
 
@@ -37,9 +41,9 @@ cm = CustomModels(formatted_transcripts=dect.formatted_transcripts,
                   start_date_training="2007-05-10",
                   end_date_training="2019-01-01",
                   start_date_validation = "2019-01-02",
-                  end_date_validation = "2024-01-01",
-                  start_date_test = "2024-01-02",
-                  end_date_test = "2025-07-24"
+                  end_date_validation = "2022-01-01",
+                  start_date_test = "2022-01-02",
+                  end_date_test = "2024-07-24"
                   )
 cm.apply_retrieve_sentences_fast() # takes c. 1min
 cm.get_unlabelled_data_flat()
@@ -54,8 +58,28 @@ cm.get_unlabelled_data_flat()
 #                                            ) # to optimize, takes c. 25min
 # if you want to save time and directly load the results from the above function,
 # de-comment these lines
-with gzip.open(os.path.join("data", "zero_shot_classification_sentence_level_labels_train_val.pkl.gz"), "rb") as handle:
-    cm.sentence_level_labels = pickle.load(handle)
+# First, try to load from the new_commit_colleague directory if it exists
+zero_shot_file_paths = [
+    os.path.join("new_commit_colleague", "data", "zero_shot_classification_sentence_level_labels_train_val.pkl.gz"),
+    os.path.join("data", "zero_shot_classification_sentence_level_labels_train_val.pkl.gz")
+]
+
+loaded_zero_shot = False
+for zero_shot_path in zero_shot_file_paths:
+    if os.path.exists(zero_shot_path):
+        print(f"Loading zero-shot classification results from {zero_shot_path}...")
+        with gzip.open(zero_shot_path, "rb") as handle:
+            cm.sentence_level_labels = pickle.load(handle)
+        loaded_zero_shot = True
+        break
+
+if not loaded_zero_shot:
+    print("Zero-shot classification results not found. You may need to run zero_shot_classification_sentence_level() first.")
+    print("This will take approximately 25 minutes...")
+    # Uncomment the next lines to run zero-shot classification
+    # cm.zero_shot_classification_sentence_level(unlabelled_train_val_data_flat=cm.unlabelled_data_flat.loc[cm.start_date_training:cm.end_date_validation])
+    exit(1)
+
 cm.get_accuracy_zero_shot_classification(human_label_df=None,
                                          loading_path_human=os.path.join("outputs", "zero_shot_classification_results_human_label.xlsx"),
                                          file_extension="xlsx",
@@ -65,6 +89,12 @@ cm.get_accuracy_zero_shot_classification(human_label_df=None,
 # note: the optimal threshold is generally the highest (0.9) with an accuracy of 1.0 but very small sample size
 # (4 out of 50).
 cm.get_zsc_sentence_level_label_filtered_threshold(threshold=cm.optimal_threshold_zsc)
+
+# Add some debugging information
+print(f"Date range in filtered data: {cm.sentence_level_label_filtered_threshold.index.get_level_values('filing_date').min()} to {cm.sentence_level_label_filtered_threshold.index.get_level_values('filing_date').max()}")
+print(f"Training period: {cm.start_date_training} to {cm.end_date_training}")
+print(f"Test period: {cm.start_date_test} to {cm.end_date_test}")
+
 cm.split_train_validation_test()
 clf = LogisticRegression(max_iter=1000,
                          solver="lbfgs",

@@ -406,30 +406,38 @@ class CustomModels:
         self.y_test = self.sentence_level_label_filtered_threshold.loc[self.start_date_test:self.end_date_test, "labels"]
 
     def fit_model(self, model_class: type[ClassifierMixin], **kwargs):
-        if self.x_train is None or self.y_train is None:
-            raise ValueError("Training data not assigned")
-        if self.x_test is None or self.y_test is None:
-            raise ValueError("Test data not assigned")
+        if self.sentence_level_label_filtered_threshold is None:
+            raise ValueError("Filtered threshold data not available")
 
         vectorizer = TfidfVectorizer(
             max_features=10000,  # Top 10K most frequent words
             ngram_range=(1, 2),  # Use 1-grams and 2-grams
             stop_words='english'  # Remove common words
         )
+        
+        # Get all sentences and labels from filtered data
         sentences = self.sentence_level_label_filtered_threshold["sentence"]
+        labels = self.sentence_level_label_filtered_threshold["labels"]
+        
+        # Fit vectorizer on all sentences
         x = vectorizer.fit_transform(sentences)
 
+        # Create date masks based on the filtered data index
         date_index = self.sentence_level_label_filtered_threshold.index.get_level_values("filing_date")
         mask_train = (date_index >= self.start_date_training) & (date_index <= self.end_date_training)
         mask_test = (date_index >= self.start_date_test) & (date_index <= self.end_date_test)
 
-        # Use the mask to slice the sparse matrix by integer positions
-        x_train = x[mask_train]
-        x_test = x[mask_test]
-        y_train = self.y_train[mask_train]
-        y_test = self.y_test[mask_test]
+        # Convert boolean masks to integer positions for sparse matrix indexing
+        train_indices = np.where(mask_train)[0]
+        test_indices = np.where(mask_test)[0]
 
-        # Fit and evaluate
+        # Apply masks to get training and test data
+        x_train = x[train_indices]
+        x_test = x[test_indices]
+        y_train = labels.iloc[train_indices]
+        y_test = labels.iloc[test_indices]
+
+        # Fit and evaluate the model
         self.clf = model_class(**kwargs)
         self.clf.fit(x_train, y_train)
         print("Accuracy:", self.clf.score(x_test, y_test))
