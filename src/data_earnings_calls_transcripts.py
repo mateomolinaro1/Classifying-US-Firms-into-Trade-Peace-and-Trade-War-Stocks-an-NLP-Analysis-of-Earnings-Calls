@@ -1,7 +1,8 @@
 import requests
 import pandas as pd
 from typing import List
-from utilities import preprocess_text
+import os
+from .utilities import preprocess_text
 
 
 class DataEarningsCallsTranscripts:
@@ -40,7 +41,7 @@ class DataEarningsCallsTranscripts:
         :return: A DataFrame containing the index constituents present at each ID_DATE
         """
         self.index_constituents_feather = pd.read_feather(
-            r".\data\RIY Index constituents.feather"
+            os.path.join("data", "RIY Index constituents.feather")
         )
         self.index_constituents_feather["Ticker_api"] = (
             self.index_constituents_feather["Ticker"].str.split().str[0]
