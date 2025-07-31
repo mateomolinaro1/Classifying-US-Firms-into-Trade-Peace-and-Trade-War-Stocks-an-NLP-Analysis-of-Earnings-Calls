@@ -182,6 +182,61 @@ class TradePolicyAnalyzer:
                 )
         logger.info("---")
 
+    def _save_finbert_results(self):
+        """Save FinBERT analysis results to output files."""
+        if self.finbert_results is None:
+            logger.warning("No FinBERT results available to save")
+            return
+
+        try:
+            # Create output directory for FinBERT results
+            finbert_output_dir = os.path.join(self.output_dir, "finbert_results")
+            os.makedirs(finbert_output_dir, exist_ok=True)
+
+            # Save as CSV file
+            csv_path = os.path.join(finbert_output_dir, "finbert_analysis_results.csv")
+            self.finbert_results.to_csv(csv_path, index=False)
+            logger.info(f"FinBERT results saved to CSV: {csv_path}")
+
+            # Save as pickle file for preservation of data types
+            pickle_path = os.path.join(finbert_output_dir, "finbert_analysis_results.pkl")
+            self.finbert_results.to_pickle(pickle_path)
+            logger.info(f"FinBERT results saved to pickle: {pickle_path}")
+
+            # Save summary statistics
+            summary_path = os.path.join(finbert_output_dir, "finbert_summary_stats.txt")
+            with open(summary_path, "w") as f:
+                f.write("FinBERT Analysis Summary Statistics\n")
+                f.write("=" * 40 + "\n\n")
+                f.write(f"Total transcripts processed: {len(self.finbert_results)}\n")
+                f.write(f"Transcripts with trade mentions: {(self.finbert_results['num_trade_segments'] > 0).sum()}\n")
+                f.write(f"Average trade exposure score: {self.finbert_results['trade_exposure_score'].mean():.4f}\n")
+                f.write(f"Average sentiment score: {self.finbert_results['sentiment_score'].mean():.4f}\n")
+                f.write(f"Average positive intensity: {self.finbert_results['positive_intensity'].mean():.4f}\n")
+                f.write(f"Average negative intensity: {self.finbert_results['negative_intensity'].mean():.4f}\n")
+                f.write(f"Average neutral intensity: {self.finbert_results['neutral_intensity'].mean():.4f}\n")
+                f.write(f"Average trade mention frequency: {self.finbert_results['trade_mention_frequency'].mean():.4f}\n\n")
+                
+                # Add descriptive statistics for key metrics
+                f.write("Descriptive Statistics:\n")
+                f.write("-" * 20 + "\n")
+                key_columns = ['trade_exposure_score', 'sentiment_score', 'positive_intensity', 
+                              'negative_intensity', 'neutral_intensity', 'num_trade_segments', 
+                              'trade_mention_frequency']
+                f.write(self.finbert_results[key_columns].describe().to_string())
+                
+            logger.info(f"FinBERT summary statistics saved to: {summary_path}")
+
+            # Save top exposed companies (highest trade exposure scores)
+            if 'trade_exposure_score' in self.finbert_results.columns:
+                top_exposed = self.finbert_results.nlargest(20, 'trade_exposure_score')
+                top_exposed_path = os.path.join(finbert_output_dir, "top_trade_exposed_companies.csv")
+                top_exposed.to_csv(top_exposed_path, index=False)
+                logger.info(f"Top trade-exposed companies saved to: {top_exposed_path}")
+
+        except Exception as e:
+            logger.error(f"Error saving FinBERT results: {str(e)}")
+
     def run_custom_models_analysis(self) -> Optional[Dict[str, Any]]:
         """
         Run custom models analysis including zero-shot classification and logistic regression.
@@ -196,9 +251,14 @@ class TradePolicyAnalyzer:
                 logger.error("No transcript data available for custom models analysis")
                 return None
 
+            # Load formatted (unprocessed) transcripts for CustomModels
+            formatted_transcripts = self.data_loader.get_data(
+                TranscriptTypes.UNPROCESSED.value
+            )
+            
             # Initialize CustomModels with date ranges
             cm = CustomModels(
-                formatted_transcripts=self.formatted_transcripts_preprocessed,
+                formatted_transcripts=formatted_transcripts,
                 start_date_training="2007-05-10",
                 end_date_training="2019-01-01",
                 start_date_validation="2019-01-02",
@@ -381,6 +441,8 @@ class TradePolicyAnalyzer:
                         logger.info(
                             f"FinBERT analysis complete. Results shape: {self.finbert_results.shape}"
                         )
+                        # Save FinBERT results to output files
+                        self._save_finbert_results()
                     else:
                         logger.error("FinBERT analysis failed")
 
@@ -471,6 +533,8 @@ class TradePolicyAnalyzer:
 
         if self.finbert_results is not None:
             summary["finbert_results_shape"] = self.finbert_results.shape
+            summary["finbert_results_saved"] = True
+            summary["finbert_output_dir"] = os.path.join(self.output_dir, "finbert_results")
 
         if self.custom_models_results is not None:
             summary["custom_models_optimal_threshold"] = self.custom_models_results.get(
