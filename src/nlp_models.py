@@ -14,6 +14,8 @@ from transformers import pipeline
 import torch
 from sklearn.base import ClassifierMixin
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+import gzip, pickle
 
 # Trade vocabulary constants
 TRADE_VOCABULARY = [
@@ -330,10 +332,11 @@ class CustomModels:
         self.y_validation = None
         self.x_test = None
         self.y_test = None
+        self.vectorizer = None
         self.clf = None
+        self.y_pred = None
 
-        self.transcript_scores = None
-        self.transcript_labels = None
+        self.transcript_predicted_labels = None
 
     def apply_retrieve_sentences_fast(self):
         tqdm.pandas()
@@ -471,83 +474,142 @@ class CustomModels:
         )
 
     def split_train_validation_test(self):
-        self.x_train = self.sentence_level_label_filtered_threshold.loc[
-            self.start_date_training : self.end_date_training, "sentence"
-        ]
-        self.y_train = self.sentence_level_label_filtered_threshold.loc[
-            self.start_date_training : self.end_date_training, "labels"
-        ]
+        self.x_train = self.sentence_level_label_filtered_threshold.loc[self.start_date_training:self.end_date_training,
+                       ["sentence"]]
+        self.y_train = self.sentence_level_label_filtered_threshold.loc[self.start_date_training:self.end_date_training,
+                       ["labels"]]
         self.x_validation = self.sentence_level_label_filtered_threshold.loc[
-            self.start_date_validation : self.end_date_validation, "sentence"
-        ]
+                            self.start_date_validation:self.end_date_validation,
+                            ["sentence"]]
         self.y_validation = self.sentence_level_label_filtered_threshold.loc[
-            self.start_date_validation : self.end_date_validation, "labels"
-        ]
-        self.x_test = self.sentence_level_label_filtered_threshold.loc[
-            self.start_date_test : self.end_date_test, "sentence"
-        ]
-        self.y_test = self.sentence_level_label_filtered_threshold.loc[
-            self.start_date_test : self.end_date_test, "labels"
-        ]
+                            self.start_date_validation:self.end_date_validation,
+                            ["labels"]]
+        self.x_test = self.unlabelled_data_flat.loc[self.start_date_test:self.end_date_test, ["sentences_of_interest"]]
+
 
     def fit_model(self, model_class: type[ClassifierMixin], **kwargs):
-        if self.sentence_level_label_filtered_threshold is None:
-            raise ValueError("Filtered threshold data not available")
+        if self.x_train is None or self.y_train is None:
+            raise ValueError("Training data not assigned")
+        if self.x_validation is None or self.y_validation is None:
+            raise ValueError("Test data not assigned")
 
-        vectorizer = TfidfVectorizer(
+        self.vectorizer = TfidfVectorizer(
             max_features=10000,  # Top 10K most frequent words
             ngram_range=(1, 2),  # Use 1-grams and 2-grams
-            stop_words="english",  # Remove common words
+            stop_words='english'  # Remove common words
         )
-
-        # Get all sentences and labels from filtered data
         sentences = self.sentence_level_label_filtered_threshold["sentence"]
-        labels = self.sentence_level_label_filtered_threshold["labels"]
+        x = self.vectorizer.fit_transform(sentences)
 
-        # Fit vectorizer on all sentences
-        x = vectorizer.fit_transform(sentences)
+        training_date_range_idx = sentences.index.slice_indexer(start=self.start_date_training,
+                                                                end=self.end_date_training)
+        validation_date_range_idx = sentences.index.slice_indexer(start=self.start_date_validation,
+                                                                  end=self.end_date_validation)
 
-        # Create date masks based on the filtered data index
-        date_index = (
-            self.sentence_level_label_filtered_threshold.index.get_level_values(
-                "filing_date"
-            )
-        )
-        mask_train = (date_index >= self.start_date_training) & (
-            date_index <= self.end_date_training
-        )
-        mask_test = (date_index >= self.start_date_test) & (
-            date_index <= self.end_date_test
-        )
+        # Use the mask to slice the sparse matrix by integer positions
+        x_train = x[training_date_range_idx, :]
+        x_validation = x[validation_date_range_idx, :]
 
-        # Convert boolean masks to integer positions for sparse matrix indexing
-        train_indices = np.where(mask_train)[0]
-        test_indices = np.where(mask_test)[0]
-
-        # Apply masks to get training and test data
-        x_train = x[train_indices]
-        x_test = x[test_indices]
-        y_train = labels.iloc[train_indices]
-        y_test = labels.iloc[test_indices]
-
-        # Fit and evaluate the model
+        # Fit and evaluate
         self.clf = model_class(**kwargs)
-        self.clf.fit(x_train, y_train)
-        print("Accuracy:", self.clf.score(x_test, y_test))
+        self.clf.fit(x_train, self.y_train.squeeze().values)
+        print("Accuracy:", self.clf.score(x_validation, self.y_validation.squeeze().values))
 
-    def zero_shot_classification_transcript_level_aggregation(
-        self, threshold: float = 0.5
-    ):
-        transcript_scores = self.sentence_level_labels.groupby(level=self.index_names)[
-            self.labels
-        ].mean()
-        transcript_scores["max_score"] = transcript_scores.max(axis=1)
-        transcript_scores["label"] = transcript_scores[self.labels].idxmax(axis=1)
-        transcript_scores.loc[transcript_scores["max_score"] < threshold, "label"] = (
-            "unlabelled"
+    def predict(self):
+        if not hasattr(self, "clf") or self.clf is None:
+            raise ValueError("Model is not trained. Call fit_model() first.")
+        if not hasattr(self, "vectorizer"):
+            raise ValueError("Vectorizer not found. Fit the model first.")
+
+        sentences = self.x_test["sentences_of_interest"]
+        x_test = self.vectorizer.transform(sentences)
+
+        if x_test.shape[0] == 0:
+            raise ValueError("No test data available for prediction.")
+        y_pred = self.clf.predict(x_test)
+        self.y_pred = pd.DataFrame(data=y_pred, index=self.x_test.index, columns=["labels"])
+
+        return self.y_pred
+
+    def transcript_level_aggregation_from_sentence_labels(self):
+        # This function will aggregate (majority voting rule) the sentence-level labels to transcript-level labels.
+        def get_majority(group: pd.Series) -> str:
+            counts = group.value_counts()
+            # If there is a tie between positive and negative
+            if (
+                    "positive" in counts.index
+                    and "negative" in counts.index
+                    and counts["positive"] == counts["negative"]
+            ):
+                return "neutral"
+            # Otherwise return the label with max count
+            return counts.idxmax()
+
+        result = self.y_pred.groupby(level=["filing_date", "ticker_api"])["labels"].apply(get_majority)
+        self.transcript_predicted_labels = result.to_frame(name="majority_label")
+
+    def launch_custom_models(self,
+                             load_or_compute="load",
+                             model_class=LogisticRegression,
+                             **model_kwargs):
+        """
+        Run the entire pipeline for custom models:
+        1. Retrieve sentences of interest
+        2. Get unlabelled data
+        3. Compute or load zero-shot classification results
+        4. Evaluate accuracy and pick optimal threshold
+        5. Filter by threshold and split data
+        6. Fit model and predict
+        7. Aggregate predictions at transcript level
+        """
+
+        # 1 - Retrieve sentences
+        print("Step 1: Retrieving sentences of interest...")
+        self.apply_retrieve_sentences_fast()
+
+        # 2 - Get unlabelled data
+        print("Step 2: Getting unlabelled data...")
+        self.get_unlabelled_data_flat()
+
+        # 3 - Compute or load zero-shot classification
+        print("Step 3: Zero-shot classification...")
+        if load_or_compute == "compute":
+            self.zero_shot_classification_sentence_level(
+                unlabelled_train_val_data_flat=self.unlabelled_data_flat.loc[
+                                               self.start_date_training:self.end_date_validation],
+                model="facebook/bart-large-mnli",
+                hypothesis_template="This statement is positive {}.",
+                save_in_self_sentence_level_labels=True,
+                return_results=False
+            )
+        elif load_or_compute == "load":
+            with gzip.open(r'.\data\zero_shot_classification_sentence_level_labels_train_val.pkl.gz', "rb") as handle:
+                self.sentence_level_labels = pickle.load(handle)
+        else:
+            raise ValueError("load_or_compute must be 'compute' or 'load'.")
+
+        # 4 - Accuracy and optimal threshold
+        print("Step 4: Evaluating accuracy...")
+        self.get_accuracy_zero_shot_classification(
+            human_label_df=None,
+            loading_path_human=r'.\outputs\zero_shot_classification_results_human_label.xlsx',
+            file_extension="xlsx",
+            usecols="A:H",
+            threshold_range=(0.33, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
         )
-        if self.transcript_scores is None:
-            self.transcript_scores = transcript_scores
-        transcript_labels = transcript_scores[["label"]]
-        if self.transcript_labels is None:
-            self.transcript_labels = transcript_labels
+
+        # 5 - Filter and split data
+        print("Step 5: Filtering and splitting data...")
+        self.get_zsc_sentence_level_label_filtered_threshold(threshold=self.optimal_threshold_zsc)
+        self.split_train_validation_test()
+
+        # 6 - Fit model
+        print("Step 6: Training classifier...")
+        self.fit_model(model_class, **model_kwargs)
+
+        # 7 - Predict and aggregate
+        print("Step 7: Predicting and aggregating...")
+        self.predict()
+        self.transcript_level_aggregation_from_sentence_labels()
+
+        print("Pipeline completed successfully.")

@@ -69,6 +69,7 @@ class TradePolicyAnalyzer:
         # Initialize data and results storage
         self.data_loader = DataLoader()
         self.formatted_transcripts_preprocessed: Optional[pd.DataFrame] = None
+        self.formatted_transcripts: Optional[pd.DataFrame] = None
 
         # Analysis results
         self.bow_results: Optional[pd.DataFrame] = None
