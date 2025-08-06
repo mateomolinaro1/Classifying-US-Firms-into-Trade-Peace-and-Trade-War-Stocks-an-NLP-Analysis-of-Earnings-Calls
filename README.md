@@ -9,6 +9,7 @@ This project analyzes how companies' earnings call transcripts reveal their expo
 - **Bag of Words (BOW)** analysis with trade-specific vocabulary
 - **Bag of Words with Sentiment (BOWWS)** analysis
 - **FinBERT** transformer model for advanced sentiment analysis
+- **TF-IDF + logistic regression**
 - Statistical analysis and visualization of results
 
 ## Key Features
